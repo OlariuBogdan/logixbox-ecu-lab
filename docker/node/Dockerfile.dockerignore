@@ -1,0 +1,3 @@
+# Fisierele care NU se copiaza in imagine (relativ la folderul frontend)
+node_modules
+dist

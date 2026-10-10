@@ -1,0 +1,6 @@
+# Fisierele care NU se copiaza in imagine (relativ la folderul backend)
+.venv
+venv
+__pycache__
+*.pyc
+.env
