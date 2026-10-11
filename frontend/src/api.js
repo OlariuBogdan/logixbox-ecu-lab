@@ -83,17 +83,27 @@ export const api = {
 
   // POST /api/ai/tasks/{id}/subtasks
   suggestSubtasks: (taskId) => request(`/api/ai/tasks/${taskId}/subtasks`, { method: 'POST' }),
+
+  // POST /api/ai/tasks/{id}/explain (Endpoint nou creat pentru diagnoza rapida PCB)
+  explainTask: (taskId) => request(`/api/ai/tasks/${taskId}/explain`, { method: 'POST' }),
 }
 
-// Textele afisate pentru statusuri si prioritati
+// Textele afisate pentru statusurile modulelor ECU in laborator
 export const STATUSES = {
-  de_facut: 'De facut',
-  in_lucru: 'In lucru',
-  finalizat: 'Finalizat',
+  de_facut: 'Recepționat',
+  in_lucru: 'În diagnoză (Banc)',
+  finalizat: 'Reparat & Testat',
 }
 
 export const PRIORITIES = {
-  1: 'Mica',
-  2: 'Medie',
-  3: 'Mare',
+  1: 'Stoc / Normală',
+  2: 'Prioritară',
+  3: 'URGENȚĂ (Imobilizat)',
+}
+
+// Tranzitiile permise (aceleasi ca in backend, routers/tasks.py - Intalnirea 3)
+export const TRANSITIONS = {
+  de_facut: ['in_lucru'],
+  in_lucru: ['de_facut', 'finalizat'],
+  finalizat: ['in_lucru'],
 }

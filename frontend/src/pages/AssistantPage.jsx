@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api.js'
 
-// Exemple de intrebari, puse pe butoane
+// Exemple de intrebari tehnice specifice laboratorului ECU
 const EXAMPLES = [
-  'Ce este o diagrama de clase UML?',
-  'Explica pe scurt diferenta dintre cerinte functionale si nefunctionale.',
-  'Da-mi 3 idei de aplicatii care folosesc un model de limbaj local.',
+  'Care sunt cauzele frecvente pe PCB pentru eroarea P0606 (Processor Fault) la un ECU Bosch EDC17?',
+  'Cum verific pe banc cu osciloscopul transceiverul CAN-Bus daca modulul nu comunica cu testerul?',
+  'Ce componente trebuie verificate pe placa la un scurtcircuit pe linia de 5V senzori?',
 ]
 
-// Instructiunea de sistem: spune modelului cum sa se comporte
-const SYSTEM_PROMPT = 'Esti un asistent pentru studentii la informatica. Raspunde clar si pe scurt, in limba romana.'
+// Instructiunea de sistem: seteaza rolul de inginer electronist auto pentru Ollama
+const SYSTEM_PROMPT = (
+  'Esti un inginer electronist senior in cadrul laboratorului LOGIXBOX.RO, ' +
+  'specializat in diagnosticarea si repararea la nivel de componenta SMD a modulelor auto (ECU, TCU, BCM). ' +
+  'Raspunde tehnic, precis, structurat si concis, in limba romana.'
+)
 
-// Pagina Asistent IA: intrebari libere catre model + propunere de subsarcini
+// Pagina Diagnoza IA: consultanta tehnica libera + generare checklist de verificare pe banc
 function AssistantPage() {
   const [message, setMessage] = useState('')
   const [answer, setAnswer] = useState(null)
@@ -24,7 +28,7 @@ function AssistantPage() {
   const [subtasksLoading, setSubtasksLoading] = useState(false)
   const [subtasksError, setSubtasksError] = useState(null)
 
-  // Sarcinile pentru lista de selectie
+  // Fisele ECU pentru lista de selectie
   useEffect(() => {
     api.getTasks()
       .then((data) => setTasks(data))
@@ -76,20 +80,20 @@ function AssistantPage() {
 
   return (
     <>
-      <h1>Asistent IA</h1>
-      <p className="subtitle">Intrebarile sunt trimise modelului de limbaj care ruleaza local, in Ollama.</p>
+      <h1>Asistent Diagnoză Hardware & ECU (IA)</h1>
+      <p className="subtitle">Consultanță tehnică la nivel de PCB, interpretare coduri DTC și proceduri de verificare pe banc generate local prin Ollama.</p>
 
       <section className="card">
-        <h2>Intreaba modelul</h2>
+        <h2>Consultanță Tehnică Rapidă (Coduri DTC / Depanare PCB)</h2>
         <form onSubmit={handleSubmit} className="chat-form">
           <textarea
             value={message}
             onChange={(event) => setMessage(event.target.value)}
-            placeholder="Scrieti o intrebare..."
+            placeholder="Descrie codul DTC, tipul de ECU (ex: Bosch EDC17, Continental SIMOS, Delphi) sau simptomul măsurat pe placă..."
             rows={3}
             required
           />
-          <button type="submit" disabled={thinking}>Trimite</button>
+          <button type="submit" disabled={thinking}>Solicită Diagnostic IA</button>
         </form>
 
         <div className="examples">
@@ -100,33 +104,35 @@ function AssistantPage() {
           ))}
         </div>
 
-        {thinking && <p className="muted">Modelul se gandeste...</p>}
+        {thinking && <p className="muted">Modelul analizează problema tehnică...</p>}
 
         {error && <div className="status status-error">{error}</div>}
 
         {answer && (
           <div className="answer">
-            <p className="muted">Raspuns ({answer.model}):</p>
+            <p className="muted">Recomandare Tehnică ({answer.model}):</p>
             <p>{answer.answer}</p>
           </div>
         )}
       </section>
 
       <section className="card">
-        <h2>Propune subsarcini</h2>
-        <p className="muted">Modelul imparte sarcina aleasa in 3-5 pasi. Propunerile nu se salveaza.</p>
+        <h2>Generator Checklist de Diagnoză pe Banc</h2>
+        <p className="muted">Selectează o fișă ECU din laborator, iar modelul IA va genera o procedură în 3–5 pași de verificare electronică și testare.</p>
 
         <div className="form">
           <select value={taskId} onChange={(event) => setTaskId(event.target.value)}>
-            <option value="">Alege sarcina</option>
+            <option value="">Alege fișa modulului ECU</option>
             {tasks.map((task) => (
               <option key={task.id} value={task.id}>{task.title}</option>
             ))}
           </select>
-          <button onClick={handleSubtasks} disabled={!taskId || subtasksLoading}>Propune subsarcini</button>
+          <button onClick={handleSubtasks} disabled={!taskId || subtasksLoading}>
+            Generează Procedură Banc
+          </button>
         </div>
 
-        {subtasksLoading && <p className="muted">Modelul se gandeste...</p>}
+        {subtasksLoading && <p className="muted">Se generează pașii de verificare hardware...</p>}
 
         {subtasksError && <div className="status status-error">{subtasksError}</div>}
 

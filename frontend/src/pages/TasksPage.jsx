@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api, PRIORITIES, STATUSES } from '../api.js'
 
-const emptyForm = { title: '', project_id: '', priority: '2' }
+const emptyForm = { title: '', description: '', project_id: '', priority: '2' }
 
-// Pagina Sarcini: filtrare, adaugare, schimbarea statusului si stergere
+// Pagina Fise Service ECU: filtrare, receptie modul, schimbare status banc si diagnoza rapida IA
 function TasksPage() {
   const [projects, setProjects] = useState([])
   const [tasks, setTasks] = useState([])
@@ -11,6 +11,8 @@ function TasksPage() {
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [aiAdvice, setAiAdvice] = useState(null)
+  const [aiLoadingId, setAiLoadingId] = useState(null)
 
   // GET /api/tasks cu filtrele alese
   function loadTasks() {
@@ -24,7 +26,7 @@ function TasksPage() {
       .finally(() => setLoading(false))
   }
 
-  // Proiectele sunt necesare pentru filtre si pentru formular (o singura data)
+  // Loturile / Clientii sunt necesari pentru filtre si pentru formular
   useEffect(() => {
     api.getProjects()
       .then((data) => setProjects(data))
@@ -37,7 +39,7 @@ function TasksPage() {
   }, [filters])
 
   function projectName(id) {
-    return projects.find((project) => project.id === id)?.name ?? `Proiectul ${id}`
+    return projects.find((project) => project.id === id)?.name ?? `Client/Lot #${id}`
   }
 
   function handleFilterChange(event) {
@@ -54,6 +56,7 @@ function TasksPage() {
     try {
       await api.createTask({
         title: form.title,
+        description: form.description || null,
         project_id: Number(form.project_id),
         priority: Number(form.priority),
       })
@@ -74,9 +77,23 @@ function TasksPage() {
     }
   }
 
+  // POST /api/ai/tasks/{id}/explain - cere opinia rapida a AI-ului direct din tabel
+  async function handleExplain(task) {
+    setAiLoadingId(task.id)
+    setError(null)
+    try {
+      const res = await api.explainTask(task.id)
+      setAiAdvice({ title: task.title, answer: res.answer, model: res.model })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setAiLoadingId(null)
+    }
+  }
+
   // DELETE /api/tasks/{id}, dupa confirmare
   async function handleDelete(task) {
-    if (!window.confirm(`Stergeti sarcina "${task.title}"?`)) {
+    if (!window.confirm(`Ștergeți fișa ECU "${task.title}"?`)) {
       return
     }
     try {
@@ -89,66 +106,91 @@ function TasksPage() {
 
   return (
     <>
-      <h1>Sarcini</h1>
+      <h1>Fișe Service & Diagnoză ECU</h1>
+      <p className="subtitle">Gestiunea modulelor electronice auto (ECU / TCU / BCM) aflate pe bancul de probă.</p>
 
       {error && <div className="status status-error">{error}</div>}
 
+      {aiAdvice && (
+        <div className="answer">
+          <strong>Recomandare Tehnică IA ({aiAdvice.model}) pentru: <code>{aiAdvice.title}</code></strong>
+          <p>{aiAdvice.answer}</p>
+          <button className="button-secondary" onClick={() => setAiAdvice(null)}>Închide</button>
+        </div>
+      )}
+
       <section className="card">
-        <h2>Adauga o sarcina</h2>
+        <h2>Înregistrează Modul ECU în Service</h2>
         <form onSubmit={handleSubmit} className="form form-grid">
-          <input name="title" value={form.title} onChange={handleFormChange} placeholder="Titlu" maxLength={200} required />
+          <input
+            name="title"
+            value={form.title}
+            onChange={handleFormChange}
+            placeholder="Model ECU + Cod DTC (ex: Bosch EDC17C64 - P0606)"
+            maxLength={200}
+            required
+          />
           <select name="project_id" value={form.project_id} onChange={handleFormChange} required>
-            <option value="">Alege proiectul</option>
+            <option value="">Alege Clientul / Categoria</option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>{project.name}</option>
             ))}
           </select>
+          <input
+            name="description"
+            value={form.description}
+            onChange={handleFormChange}
+            placeholder="Simptome / Măsurători (ex: Nu comunică pe CAN, scurt 5V)"
+          />
           <select name="priority" value={form.priority} onChange={handleFormChange}>
             {Object.entries(PRIORITIES).map(([value, label]) => (
-              <option key={value} value={value}>Prioritate: {label}</option>
+              <option key={value} value={value}>Regim: {label}</option>
             ))}
           </select>
-          <button type="submit">Adauga</button>
+          <button type="submit">Înregistrează Fișa ECU</button>
         </form>
       </section>
 
       <section className="card">
-        <h2>Lista sarcinilor</h2>
+        <h2>Module Aflate în Laborator</h2>
 
         <div className="form filters">
           <select name="project_id" value={filters.project_id} onChange={handleFilterChange}>
-            <option value="">Toate proiectele</option>
+            <option value="">Toți clienții / Toate loturile</option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>{project.name}</option>
             ))}
           </select>
           <select name="status" value={filters.status} onChange={handleFilterChange}>
-            <option value="">Toate statusurile</option>
+            <option value="">Toate stările de lucru</option>
             {Object.entries(STATUSES).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
         </div>
 
-        {loading && <p className="muted">Se incarca...</p>}
+        {loading && <p className="muted">Se încarcă registrele din baza de date...</p>}
 
-        {!loading && tasks.length === 0 && <p>Nu exista sarcini pentru filtrele alese.</p>}
+        {!loading && tasks.length === 0 && <p>Nu există module ECU pentru filtrele selectate.</p>}
 
         {!loading && tasks.length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>Titlu</th>
-                <th>Proiect</th>
-                <th>Prioritate</th>
-                <th>Status</th>
-                <th></th>
+                <th>Modul ECU / Defect</th>
+                <th>Client / Lot</th>
+                <th>Urgență</th>
+                <th>Stare pe Banc</th>
+                <th>Acțiuni</th>
               </tr>
             </thead>
             <tbody>
               {tasks.map((task) => (
                 <tr key={task.id}>
-                  <td>{task.title}</td>
+                  <td>
+                    <strong>{task.title}</strong>
+                    {task.description && <div className="muted" style={{ fontSize: '0.85rem', marginTop: '2px' }}>{task.description}</div>}
+                  </td>
                   <td>{projectName(task.project_id)}</td>
                   <td><span className={`badge priority-${task.priority}`}>{PRIORITIES[task.priority]}</span></td>
                   <td>
@@ -158,8 +200,16 @@ function TasksPage() {
                       ))}
                     </select>
                   </td>
-                  <td>
-                    <button className="button-danger" onClick={() => handleDelete(task)}>Sterge</button>
+                  <td style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => handleExplain(task)}
+                      disabled={aiLoadingId === task.id}
+                    >
+                      {aiLoadingId === task.id ? 'Analiză...' : 'Analiză IA'}
+                    </button>
+                    <button className="button-danger" onClick={() => handleDelete(task)}>Șterge</button>
                   </td>
                 </tr>
               ))}
