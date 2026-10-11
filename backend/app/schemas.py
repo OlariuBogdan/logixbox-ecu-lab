@@ -6,15 +6,15 @@ from pydantic import BaseModel, ConfigDict, Field
 # Schemele Pydantic descriu datele care intra si ies prin API.
 # FastAPI le foloseste pentru validare automata (eroare 422) si pentru Swagger (/docs).
 
-# Statusurile permise pentru o sarcina
+# Statusurile permise pentru o sarcina (fisa ECU)
 TaskStatus = Literal["de_facut", "in_lucru", "finalizat"]
 
 
-# ---------- Proiecte ----------
+# ---------- Proiecte (Clienti / Loturi) ----------
 
 class ProjectCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=100, examples=["Magazin online"])
-    description: str | None = Field(default=None, examples=["Proiectul echipei 1"])
+    name: str = Field(min_length=1, max_length=100, examples=["Service Auto Bacau - Lot VAG"])
+    description: str | None = Field(default=None, examples=["Partener B2B - module EDC17 / DSG"])
 
 
 class ProjectRead(BaseModel):
@@ -27,10 +27,25 @@ class ProjectRead(BaseModel):
     task_count: int = 0
 
 
-# ---------- Sarcini ----------
+# ---------- Comentarii (Jurnal de Banc / Masuratori) ----------
+
+class CommentCreate(BaseModel):
+    text: str = Field(min_length=1, examples=["Masurat 5V pe stabilizator TLE; inlocuit transceiver CAN TJA1050."])
+
+
+class CommentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    text: str
+    created_at: datetime
+    task_id: int
+
+
+# ---------- Sarcini (Fise Service ECU) ----------
 
 class TaskCreate(BaseModel):
-    title: str = Field(min_length=1, max_length=200, examples=["Diagrama cazurilor de utilizare"])
+    title: str = Field(min_length=1, max_length=200, examples=["Bosch EDC17C64 - P0606 / Fara comunicare CAN"])
     description: str | None = None
     status: TaskStatus = "de_facut"
     priority: int = Field(default=2, ge=1, le=3)
@@ -68,7 +83,7 @@ class AiStatus(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, examples=["Ce este o diagrama de clase UML?"])
+    message: str = Field(min_length=1, examples=["Cum verific transceiverul CAN pe banc?"])
     system: str | None = Field(default=None, examples=["Raspunde scurt, in limba romana."])
 
 

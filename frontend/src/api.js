@@ -74,6 +74,13 @@ export const api = {
   // DELETE /api/tasks/{id}
   deleteTask: (id) => request(`/api/tasks/${id}`, { method: 'DELETE' }),
 
+  // GET /api/tasks/{id}/comments
+  getComments: (taskId) => request(`/api/tasks/${taskId}/comments`),
+
+  // POST /api/tasks/{id}/comments
+  createComment: (taskId, text) =>
+    request(`/api/tasks/${taskId}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
+
   // GET /api/ai/status
   getAiStatus: () => request('/api/ai/status'),
 
@@ -84,7 +91,7 @@ export const api = {
   // POST /api/ai/tasks/{id}/subtasks
   suggestSubtasks: (taskId) => request(`/api/ai/tasks/${taskId}/subtasks`, { method: 'POST' }),
 
-  // POST /api/ai/tasks/{id}/explain (Endpoint nou creat pentru diagnoza rapida PCB)
+  // POST /api/ai/tasks/{id}/explain
   explainTask: (taskId) => request(`/api/ai/tasks/${taskId}/explain`, { method: 'POST' }),
 }
 

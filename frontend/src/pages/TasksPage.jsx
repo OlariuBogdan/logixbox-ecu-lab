@@ -3,7 +3,7 @@ import { api, PRIORITIES, STATUSES } from '../api.js'
 
 const emptyForm = { title: '', description: '', project_id: '', priority: '2' }
 
-// Pagina Fise Service ECU: filtrare, receptie modul, schimbare status banc, diagnoza IA si raport printabil PDF
+// Pagina Fise Service ECU: filtrare, receptie modul, jurnal de banc (Comment), diagnoza IA si raport PDF
 function TasksPage() {
   const [projects, setProjects] = useState([])
   const [tasks, setTasks] = useState([])
@@ -13,6 +13,12 @@ function TasksPage() {
   const [error, setError] = useState(null)
   const [aiAdvice, setAiAdvice] = useState(null)
   const [aiLoadingId, setAiLoadingId] = useState(null)
+
+  // State pentru Jurnalul de Banc (tabela Comment)
+  const [selectedTask, setSelectedTask] = useState(null)
+  const [comments, setComments] = useState([])
+  const [commentText, setCommentText] = useState('')
+  const [commentsLoading, setCommentsLoading] = useState(false)
 
   // GET /api/tasks cu filtrele alese
   function loadTasks() {
@@ -26,14 +32,12 @@ function TasksPage() {
       .finally(() => setLoading(false))
   }
 
-  // Loturile / Clientii sunt necesari pentru filtre si pentru formular
   useEffect(() => {
     api.getProjects()
       .then((data) => setProjects(data))
       .catch((err) => setError(err.message))
   }, [])
 
-  // Lista se reincarca de fiecare data cand se schimba un filtru
   useEffect(() => {
     loadTasks()
   }, [filters])
@@ -67,7 +71,7 @@ function TasksPage() {
     }
   }
 
-  // PATCH /api/tasks/{id} - se trimite doar statusul nou
+  // PATCH /api/tasks/{id} - verifica tranzitiile permise in backend (400 daca sare peste In diagnoza)
   async function handleStatusChange(task, status) {
     try {
       await api.updateTask(task.id, { status })
@@ -77,7 +81,35 @@ function TasksPage() {
     }
   }
 
-  // POST /api/ai/tasks/{id}/explain - cere opinia rapida a AI-ului direct din tabel
+  // Deschide Jurnalul de Banc (GET /api/tasks/{id}/comments)
+  async function handleOpenJournal(task) {
+    setSelectedTask(task)
+    setCommentsLoading(true)
+    setError(null)
+    try {
+      const data = await api.getComments(task.id)
+      setComments(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCommentsLoading(false)
+    }
+  }
+
+  // Adauga o masuratoare noua in Jurnalul de Banc (POST /api/tasks/{id}/comments)
+  async function handleAddComment(event) {
+    event.preventDefault()
+    if (!selectedTask || !commentText.trim()) return
+    try {
+      const added = await api.createComment(selectedTask.id, commentText.trim())
+      setComments([...comments, added])
+      setCommentText('')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  // POST /api/ai/tasks/{id}/explain
   async function handleExplain(task) {
     setAiLoadingId(task.id)
     setError(null)
@@ -91,8 +123,15 @@ function TasksPage() {
     }
   }
 
-  // Genereaza fisa A4 pentru imprimanta sau Save as PDF (pentru client)
-  function handlePrintReport(task) {
+  // Genereaza fisa A4 pentru imprimanta sau Save as PDF (include automat si Jurnalul de Banc din DB)
+  async function handlePrintReport(task) {
+    let taskComments = []
+    try {
+      taskComments = await api.getComments(task.id)
+    } catch {
+      taskComments = []
+    }
+
     const client = projectName(task.project_id)
     const statusLabel = STATUSES[task.status] ?? task.status
     const priorityLabel = PRIORITIES[task.priority] ?? task.priority
@@ -100,6 +139,12 @@ function TasksPage() {
       ? new Date(task.created_at).toLocaleString('ro-RO')
       : new Date().toLocaleString('ro-RO')
     const currentAiNote = aiAdvice && aiAdvice.taskId === task.id ? aiAdvice.answer : null
+
+    const commentsHtml = taskComments.length > 0
+      ? `<ul style="margin: 0; padding-left: 18px;">${taskComments
+          .map((c) => `<li><strong>[${new Date(c.created_at).toLocaleString('ro-RO')}]:</strong>${c.text}</li>`)
+          .join('')}</ul>`
+      : '<div class="notes-lines"></div>'
 
     const printWindow = window.open('', '_blank', 'width=850,height=900')
     if (!printWindow) {
@@ -185,7 +230,7 @@ function TasksPage() {
             padding-bottom: 4px;
           }
           .notes-lines {
-            min-height: 90px;
+            min-height: 75px;
             border-bottom: 1px dashed #9ca3af;
           }
           .signatures {
@@ -260,8 +305,8 @@ function TasksPage() {
         ` : ''}
 
         <div class="section">
-          <h3>${currentAiNote ? '3.' : '2.'} Intervenții Efectuate pe PCB / Rezultat Testare pe Banc</h3>
-          <div class="notes-lines"></div>
+          <h3>${currentAiNote ? '3.' : '2.'} Jurnal de Banc — Intervenții Efectuate pe PCB & Testare</h3>
+          ${commentsHtml}
         </div>
 
         <div class="section">
@@ -304,6 +349,9 @@ function TasksPage() {
     }
     try {
       await api.deleteTask(task.id)
+      if (selectedTask?.id === task.id) {
+        setSelectedTask(null)
+      }
       loadTasks()
     } catch (err) {
       setError(err.message)
@@ -323,6 +371,41 @@ function TasksPage() {
           <p>{aiAdvice.answer}</p>
           <button className="button-secondary" onClick={() => setAiAdvice(null)}>Închide</button>
         </div>
+      )}
+
+      {selectedTask && (
+        <section className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>Jurnal de Banc & Măsurători PCB: <code>{selectedTask.title}</code></h2>
+            <button className="button-secondary" onClick={() => setSelectedTask(null)}>Închide Jurnalul</button>
+          </div>
+          <p className="muted">Toate observațiile și măsurătorile adăugate aici se salvează în baza de date (tabela <code>comment</code>) și apar automat pe Fișa PDF a clientului.</p>
+
+          <form onSubmit={handleAddComment} className="form" style={{ marginBottom: '16px' }}>
+            <input
+              style={{ flex: 1 }}
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder="Adaugă măsurătoare / intervenție (ex: Înlocuit MOSFET injecție + verificat semnal PWM osciloscop)"
+              required
+            />
+            <button type="submit">Salvează Nota în Jurnal</button>
+          </form>
+
+          {commentsLoading && <p className="muted">Se încarcă jurnalul...</p>}
+          {!commentsLoading && comments.length === 0 && (
+            <p className="muted">Nu există încă note de banc pentru acest modul.</p>
+          )}
+          {!commentsLoading && comments.length > 0 && (
+            <ul>
+              {comments.map((c) => (
+                <li key={c.id} style={{ marginBottom: '6px' }}>
+                  <code>{new Date(c.created_at).toLocaleString('ro-RO')}</code> — {c.text}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       <section className="card">
@@ -407,6 +490,13 @@ function TasksPage() {
                     </select>
                   </td>
                   <td style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => handleOpenJournal(task)}
+                    >
+                      Jurnal Banc
+                    </button>
                     <button
                       type="button"
                       className="button-secondary"

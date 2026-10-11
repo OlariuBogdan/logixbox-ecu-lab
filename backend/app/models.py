@@ -17,7 +17,7 @@ class Project(Base):
     description: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    # Relatie 1-n: un proiect are mai multe sarcini; stergerea proiectului sterge si sarcinile
+    # Relatie 1-n: un proiect (client/lot) are mai multe sarcini (fise ECU); stergerea proiectului sterge si sarcinile
     tasks: Mapped[list["Task"]] = relationship(
         back_populates="project", cascade="all, delete-orphan", passive_deletes=True
     )
@@ -29,11 +29,25 @@ class Task(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text)
-    # Valori permise: de_facut, in_lucru, finalizat (verificate in schemas.py)
+    # Valori permise: de_facut (Receptionat), in_lucru (In diagnoza), finalizat (Reparat & Testat)
     status: Mapped[str] = mapped_column(String(20), default="de_facut")
-    # 1 = mica, 2 = medie, 3 = mare
+    # 1 = Stoc/Normala, 2 = Prioritara, 3 = URGENTA
     priority: Mapped[int] = mapped_column(Integer, default=2)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id", ondelete="CASCADE"))
 
     project: Mapped[Project] = relationship(back_populates="tasks")
+    comments: Mapped[list["Comment"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class Comment(Base):
+    __tablename__ = "comment"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    task_id: Mapped[int] = mapped_column(ForeignKey("task.id", ondelete="CASCADE"))
+
+    task: Mapped[Task] = relationship(back_populates="comments")
