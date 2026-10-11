@@ -3,7 +3,7 @@ import { api, PRIORITIES, STATUSES } from '../api.js'
 
 const emptyForm = { title: '', description: '', project_id: '', priority: '2' }
 
-// Pagina Fise Service ECU: filtrare, receptie modul, schimbare status banc si diagnoza rapida IA
+// Pagina Fise Service ECU: filtrare, receptie modul, schimbare status banc, diagnoza IA si raport printabil PDF
 function TasksPage() {
   const [projects, setProjects] = useState([])
   const [tasks, setTasks] = useState([])
@@ -83,12 +83,218 @@ function TasksPage() {
     setError(null)
     try {
       const res = await api.explainTask(task.id)
-      setAiAdvice({ title: task.title, answer: res.answer, model: res.model })
+      setAiAdvice({ taskId: task.id, title: task.title, answer: res.answer, model: res.model })
     } catch (err) {
       setError(err.message)
     } finally {
       setAiLoadingId(null)
     }
+  }
+
+  // Genereaza fisa A4 pentru imprimanta sau Save as PDF (pentru client)
+  function handlePrintReport(task) {
+    const client = projectName(task.project_id)
+    const statusLabel = STATUSES[task.status] ?? task.status
+    const priorityLabel = PRIORITIES[task.priority] ?? task.priority
+    const dateStr = task.created_at
+      ? new Date(task.created_at).toLocaleString('ro-RO')
+      : new Date().toLocaleString('ro-RO')
+    const currentAiNote = aiAdvice && aiAdvice.taskId === task.id ? aiAdvice.answer : null
+
+    const printWindow = window.open('', '_blank', 'width=850,height=900')
+    if (!printWindow) {
+      alert('Permiteți deschiderea ferestrelor pop-up în browser pentru a genera PDF-ul.')
+      return
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="ro">
+      <head>
+        <meta charset="utf-8" />
+        <title>Fisa_Service_ECU_${task.id}_LOGIXBOX</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+            color: #111827;
+            background: #ffffff;
+            margin: 32px;
+            line-height: 1.5;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 3px solid #ff5a00;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+          }
+          .brand {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #050505;
+          }
+          .brand span {
+            color: #ff5a00;
+          }
+          .doc-info {
+            text-align: right;
+            font-size: 13px;
+            color: #4b5563;
+          }
+          h1 {
+            font-size: 20px;
+            margin: 0 0 16px 0;
+            text-transform: uppercase;
+            color: #111827;
+          }
+          .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+          }
+          .field-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #6b7280;
+            font-weight: 700;
+          }
+          .field-value {
+            font-size: 15px;
+            font-weight: 600;
+            color: #111827;
+          }
+          .section {
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+          }
+          .section h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            text-transform: uppercase;
+            color: #ff5a00;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 4px;
+          }
+          .notes-lines {
+            min-height: 90px;
+            border-bottom: 1px dashed #9ca3af;
+          }
+          .signatures {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 48px;
+            padding-top: 16px;
+            font-size: 14px;
+          }
+          .sig-box {
+            width: 42%;
+            border-top: 1px solid #374151;
+            padding-top: 8px;
+            text-align: center;
+          }
+          .footer {
+            margin-top: 40px;
+            font-size: 11px;
+            color: #6b7280;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 10px;
+          }
+          @media print {
+            body { margin: 12mm; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="brand">LOGIX<span>BOX</span>.RO</div>
+            <div style="font-size: 13px; color: #4b5563;">Laborator Microelectronică Auto — Reparații & Diagnoză ECU / TCU / BCM</div>
+          </div>
+          <div class="doc-info">
+            <div><strong>Fișă Service Nr.:</strong> #ECU-${task.id}</div>
+            <div><strong>Data înregistrării:</strong> ${dateStr}</div>
+          </div>
+        </div>
+
+        <h1>Raport Tehnic de Diagnoză pe Banc și Reparație</h1>
+
+        <div class="grid">
+          <div>
+            <div class="field-label">Client / Service Partener / Lot</div>
+            <div class="field-value">${client}</div>
+          </div>
+          <div>
+            <div class="field-label">Stare Modul în Laborator</div>
+            <div class="field-value">${statusLabel}</div>
+          </div>
+          <div>
+            <div class="field-label">Modul Electronic & Cod DTC</div>
+            <div class="field-value">${task.title}</div>
+          </div>
+          <div>
+            <div class="field-label">Regim de Lucru</div>
+            <div class="field-value">${priorityLabel}</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>1. Simptome Raportate / Măsurători la Recepție</h3>
+          <p style="margin: 0;">${task.description || 'Nu au fost specificate detalii suplimentare la recepție.'}</p>
+        </div>
+
+        ${currentAiNote ? `
+        <div class="section">
+          <h3>2. Notă Tehnică & Componente Suspecte (Asistent Diagnoză IA)</h3>
+          <p style="margin: 0; white-space: pre-wrap;">${currentAiNote}</p>
+        </div>
+        ` : ''}
+
+        <div class="section">
+          <h3>${currentAiNote ? '3.' : '2.'} Intervenții Efectuate pe PCB / Rezultat Testare pe Banc</h3>
+          <div class="notes-lines"></div>
+        </div>
+
+        <div class="section">
+          <h3>Recomandări la Montajul pe Vehicul & Condiții de Garanție</h3>
+          <p style="margin: 0; font-size: 12.5px; color: #374151;">
+            Înainte de conectarea modulului reparat pe vehicul, verificați obligatoriu integritatea cablajului, tensiunea de încărcare a alternatorului (max. 14.6V), masele de putere și absența scurtcircuitelor pe actuatori (injectoare, bobine, supape). Garanția acoperă exclusiv intervenția efectuată în laborator și se anulează în caz de infiltrații de lichide, șocuri electrice (inversare polaritate / robot pornire) sau desigilarea carcasei.
+          </p>
+        </div>
+
+        <div class="signatures">
+          <div class="sig-box">
+            <strong>Inginer Electronist (LOGIXBOX.RO)</strong><br/>
+            Semnătură & Ștampilă
+          </div>
+          <div class="sig-box">
+            <strong>Beneficiar / Service Partener</strong><br/>
+            Recepție modul
+          </div>
+        </div>
+
+        <div class="footer">
+          Document generat prin platforma internă LOGIXBOX.RO — ECU Repair & AI Diagnostics Lab
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `)
+    printWindow.document.close()
   }
 
   // DELETE /api/tasks/{id}, dupa confirmare
@@ -200,7 +406,7 @@ function TasksPage() {
                       ))}
                     </select>
                   </td>
-                  <td style={{ display: 'flex', gap: '6px' }}>
+                  <td style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       className="button-secondary"
@@ -208,6 +414,13 @@ function TasksPage() {
                       disabled={aiLoadingId === task.id}
                     >
                       {aiLoadingId === task.id ? 'Analiză...' : 'Analiză IA'}
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => handlePrintReport(task)}
+                    >
+                      Print / PDF
                     </button>
                     <button className="button-danger" onClick={() => handleDelete(task)}>Șterge</button>
                   </td>
