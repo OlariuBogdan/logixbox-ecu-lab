@@ -46,7 +46,7 @@ def ai_chat(data: ChatRequest):
 
 # Instructiunile pentru model: ce trebuie sa faca si in ce format sa raspunda
 SUBTASKS_PROMPT = (
-    "Esti un inginer QA si arhitect software. "
+    "Esti un inginer  software. "
     "Pentru sarcina primita, propune 3-4 pasi concreti de verificare si testare in limba romana. "
     'Raspunde DOAR cu JSON de forma: {"subtasks": ["pas 1", "pas 2", "pas 3"]}'
 )
@@ -110,7 +110,7 @@ def ai_explain_task(task_id: int, db: Session = Depends(get_db)):
     if task is None:
         raise HTTPException(status_code=404, detail="Sarcina nu exista.")
 
-    prompt = f"Explica pe scurt, in 3 propozitii, imolemantarea sarcinii: '{task.title}' ({task.description or ''})."
+    prompt = f"Explica pe scurt, in 3 propozitii, implemantarea sarcinii: '{task.title}' ({task.description or ''})."
     try:
         answer = llm.chat([{"role": "user", "content": prompt}])
     except llm.LLMError as error:
