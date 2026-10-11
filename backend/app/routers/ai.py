@@ -46,9 +46,9 @@ def ai_chat(data: ChatRequest):
 
 # Instructiunile pentru model: ce trebuie sa faca si in ce format sa raspunda
 SUBTASKS_PROMPT = (
-    "Esti un asistent pentru managementul proiectelor software. "
-    "Imparte sarcina primita in 3-5 subsarcini concrete, scurte, in limba romana. "
-    'Raspunde DOAR cu JSON de forma: {"subtasks": ["subsarcina 1", "subsarcina 2", "subsarcina 3"]}'
+    "Esti un inginer QA si arhitect software. "
+    "Pentru sarcina primita, propune 3-4 pasi concreti de verificare si testare in limba romana. "
+    'Raspunde DOAR cu JSON de forma: {"subtasks": ["pas 1", "pas 2", "pas 3"]}'
 )
 
 
@@ -102,3 +102,18 @@ def parse_subtasks(answer: str) -> list[str]:
         if isinstance(item, str) and item.strip():
             subtasks.append(item.strip())
     return subtasks[:5]
+
+####### POST /api/ai/tasks/{id}/explain - AI-ul explica pe scurt cum sa rezolvi sarcina
+@router.post("/tasks/{task_id}/explain", response_model=ChatResponse)
+def ai_explain_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.get(Task, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Sarcina nu exista.")
+
+    prompt = f"Explica pe scurt, in 3 propozitii, imolemantarea sarcinii: '{task.title}' ({task.description or ''})."
+    try:
+        answer = llm.chat([{"role": "user", "content": prompt}])
+    except llm.LLMError as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+    return ChatResponse(model=settings.ollama_model, answer=answer)
