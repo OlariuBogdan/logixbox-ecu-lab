@@ -3,7 +3,7 @@ import { api, PRIORITIES, STATUSES } from '../api.js'
 
 const emptyForm = { title: '', description: '', project_id: '', priority: '2' }
 
-// Pagina Fise Service ECU: filtrare, receptie modul, jurnal de banc (Comment), diagnoza IA si raport PDF
+// Pagina Fise Service ECU: filtrare, receptie modul, jurnal de banc (Comment), diagnoza IA, raport PDF si Export EKB
 function TasksPage() {
   const [projects, setProjects] = useState([])
   const [tasks, setTasks] = useState([])
@@ -342,6 +342,82 @@ function TasksPage() {
     printWindow.document.close()
   }
 
+  // Genereaza scriptul PowerShell pentru Arhiva EKB (Markdown + SQLite + Git)
+  async function handleExportEKB(task) {
+    let taskComments = []
+    try {
+      taskComments = await api.getComments(task.id)
+    } catch {
+      taskComments = []
+    }
+
+    const dateStr = new Date().toISOString().split('T')[0] // Format YYYY-MM-DD
+    const safeTitle = task.title.replace(/[^a-zA-Z0-9-]/g, '_')
+    const folderName = `Caz_${task.id}_${safeTitle}`
+    const client = projectName(task.project_id)
+
+    // Construim continutul fisierului Markdown
+    const markdownContent = `# Fișă EKB: ${task.title}
+**Data:** ${dateStr}
+**Client/Lot:** ${client}
+**Simptome Inițiale:** ${task.description || 'N/A'}
+
+## Jurnal de Banc (Măsurători)
+${taskComments.length > 0 ? taskComments.map(c => `- [${new Date(c.created_at).toLocaleString('ro-RO')}]:${c.text}`).join('\\n') : '- Fără notițe pe banc.'}
+
+## Post-Mortem (De completat manual în EKB)
+- **Ce a mers greșit în diagnosticul inițial:** 
+- **Timpul real petrecut vs. estimat:** 
+- **Ce aș face diferit data viitoare:** 
+`
+
+    // Construim comanda SQL pentru SQLite
+    const sqlCommand = `sqlite3 ekb_index.db "INSERT INTO cereri (titlu, data, path, rezolvat) VALUES ('${task.title}', '${dateStr}', 'EKB/${folderName}', 1);"`
+
+    const exportWindow = window.open('', '_blank', 'width=850,height=700')
+    if (!exportWindow) return alert('Permiteți ferestrele pop-up pentru exportul EKB.')
+
+    exportWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="ro">
+      <head>
+        <meta charset="utf-8" />
+        <title>Export EKB - ECU #${task.id}</title>
+        <style>
+          body { font-family: 'Consolas', monospace; background: #050505; color: #e5e7eb; padding: 20px; }
+          h2 { color: #ff5a00; margin-top: 0; }
+          textarea { width: 100%; height: 450px; background: #111827; color: #10b981; border: 1px solid #374151; padding: 12px; font-family: 'Consolas', monospace; font-size: 13px; margin-bottom: 15px; }
+          button { background: #ff5a00; color: #fff; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; font-size: 14px; border-radius: 4px; }
+          button:hover { background: #e65000; }
+        </style>
+      </head>
+      <body>
+        <h2>📦 Export pentru Arhiva EKB (SQLite + Markdown)</h2>
+        <p style="color: #9ca3af;">Asigurați-vă că aveți deschis un terminal PowerShell în folderul principal al arhivei EKB, apoi copiați și rulați codul de mai jos:</p>
+        <textarea id="code-block" spellcheck="false">
+# 1. Creare folder pentru noul caz
+New-Item -ItemType Directory -Force -Path "EKB\\\\${folderName}"
+
+# 2. Generare fișier Markdown cu istoricul diagnozei (Folosind Here-String)
+@"
+${markdownContent}
+"@ > "EKB\\\\${folderName}\\\\index.md"
+
+# 3. Inserare în baza de date SQLite (ekb_index.db)
+${sqlCommand}
+
+# 4. Salvare automată în sistemul Git
+git add .
+git commit -m "EKB: Adăugat caz ${task.title} (Rezolvat)"
+git push
+</textarea>
+        <button onclick="document.getElementById('code-block').select(); document.execCommand('copy'); this.innerText='✔️ Cod Copiat!'; setTimeout(() => this.innerText='Copiază Codul', 3000);">Copiază Codul</button>
+      </body>
+      </html>
+    `)
+    exportWindow.document.close()
+  }
+
   // DELETE /api/tasks/{id}, dupa confirmare
   async function handleDelete(task) {
     if (!window.confirm(`Ștergeți fișa ECU "${task.title}"?`)) {
@@ -511,6 +587,13 @@ function TasksPage() {
                       onClick={() => handlePrintReport(task)}
                     >
                       Print / PDF
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => handleExportEKB(task)}
+                    >
+                      Export EKB
                     </button>
                     <button className="button-danger" onClick={() => handleDelete(task)}>Șterge</button>
                   </td>
