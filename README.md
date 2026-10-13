@@ -1,61 +1,33 @@
-# Template de proiect – Inginerie software și Inteligență artificială
+# LOGIXBOX.RO — ECU Repair & AI Diagnostics Lab
 
-Proiect de pornire pentru laboratoarele de **Inginerie software** și **Inteligență artificială**, Informatică IFR, anul III, 2026–2027.
-Cadru didactic: Asist. univ. drd. asoc. Cezar-Marian Papară.
+**Proiect pentru disciplinele Inginerie Software & Inteligență Artificială**
 
-Aplicația gestionează proiecte și sarcini și are un asistent bazat pe un model de limbaj (LLM) care rulează local:
+Sistem integrat pentru gestiunea reparațiilor electronice auto (ECU / TCU / BCM) pe bancul de probă, dezvoltat cu FastAPI, PostgreSQL și React. Proiectul extinde structura clasică de management al sarcinilor într-o platformă de producție pentru un laborator de microelectronică, asistată de modele de limbaj locale (Ollama) pentru interpretarea codurilor DTC, generarea procedurilor de diagnoză și redactarea fișelor de service.
 
-- **backend** – Python 3.12, FastAPI, SQLAlchemy, Alembic, cu bază de date PostgreSQL 17;
-- **frontend** – React 19 + Vite;
-- **LLM** – Ollama, instalat direct pe calculator (nu în Docker).
+## 📍 Unde sunt regulile din diagrame (Conform Îndrumarului)
 
-Backend-ul, frontend-ul și baza de date rulează în containere Docker; nu este nevoie să instalați Python, Node.js sau PostgreSQL.
+Pentru o evaluare ușoară, corespondența dintre cerințele de laborator și codul sursă se regăsește mai jos:
 
-## Pornire
+1. **Diagrama de Stări (Întâlnirea 3 - Restricționarea tranzițiilor):**
+   - **Locație:** `backend/app/routers/tasks.py`
+   - **Implementare:** Regulile sunt definite în dicționarul `ALLOWED_TRANSITIONS`. Un modul ECU nu poate trece direct din `de_facut` (Recepționat) în `finalizat` (Reparat & Testat). Trebuie să treacă obligatoriu prin starea `in_lucru` (În diagnoză pe banc). Funcția `check_transition()` validează modificarea, altfel API-ul returnează codul `400 Bad Request`.
 
-```bash
-git clone https://github.com/cezarpapara/is-ia-template-ifr3-2026-2027.git
-cd is-ia-template-ifr3-2026-2027
-git checkout -b nume.prenume
-docker compose up -d --build
-```
+2. **Diagrama de Clase (Întâlnirea 2 - Adăugarea unei entități noi):**
+   - **Locație:** `backend/app/models.py` și `backend/app/schemas.py`
+   - **Implementare:** A fost adăugată clasa `Comment` pentru a gestiona **Jurnalul de Banc** (măsurători, intervenții PCB, tensiuni măsurate). Aceasta are o relație `1-la-n` cu clasa `Task` (Fișa ECU), cu ștergere în cascadă. Migrarea bazei de date a fost generată și aplicată via Alembic.
 
-La pornirile următoare: `docker compose up -d`; oprire: `docker compose stop`.
+## 🛠️ Arhitectură și Tehnologii
 
-| Container | Ce conține | Adresa |
-|---|---|---|
-| `is-ia-node` | aplicația React (Vite) | http://localhost:5173 |
-| `is-ia-python` | API-ul FastAPI; documentația (Swagger) | http://localhost:8000/docs |
-| `is-ia-postgres` | PostgreSQL (pentru DBeaver) | `localhost:5432`, bază/utilizator/parolă `isia` / `isia` / `isia` |
+- **Frontend:** React + Vite, axat pe o temă vizuală _Dark Industrial_ cu funcție integrată de tipărire rapoarte PDF (Fișe A4 pentru client).
+- **Backend:** FastAPI (Python), arhitectură REST, SQLAlchemy (ORM), Alembic (Migrări).
+- **Bază de date:** PostgreSQL (stocare permanentă prin volume Docker).
+- **Inteligență Artificială:** Conectare la instanțe locale **Ollama** (ex: _qwen2.5:1.5b_) pentru confidențialitatea datelor din reparații. Interogările folosesc System Prompts cu rol specific de "Inginer Electronist Senior".
 
-## Structura proiectului
+## 🚀 Pornire Rapidă (Docker)
 
-```
-.env              configurarea: baza de date, porturile, modelul Ollama
-compose.yaml      cele trei containere (folosesc valorile din .env)
-backend/          codul Python (FastAPI)
-frontend/         codul React
-docker/
-  python/         Dockerfile-ul containerului is-ia-python
-  node/           Dockerfile-ul containerului is-ia-node
-  postgres/data/  datele bazei de date (create la prima pornire; nu se urcă pe GitHub)
-docs/diagrame/    diagramele UML (draw.io)
-```
+Aplicația rulează complet în containere.
 
-Dacă un port este ocupat sau vreți alt model Ollama, modificați valoarea în `.env`, apoi rulați `docker compose up -d`.
-Pentru a porni cu o bază de date goală: `docker compose down`, ștergeți conținutul folderului `docker/postgres/data` (fără fișierul `.gitkeep`), apoi `docker compose up -d`.
-
-## Ollama
-
-Instalați Ollama de pe https://ollama.com și descărcați modelul implicit:
-
-```bash
-ollama pull qwen2.5:1.5b
-```
-
-Pe Linux, Ollama trebuie să accepte conexiuni din Docker: porniți-l cu `OLLAMA_HOST=0.0.0.0 ollama serve`.
-Pagina **Acasă** a aplicației arată dacă backend-ul și Ollama funcționează.
-
-## Îndrumarele de laborator
-
-Îndrumarele de laborator (instalare, modul de lucru cu Git, explicarea fiecărui fișier, cerințele proiectului) se găsesc pe grupul Teams al disciplinei.
+1. **Construirea și pornirea mediului:**
+   ```bash
+   docker compose up -d --build
+   ```
